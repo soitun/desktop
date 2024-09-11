@@ -6,16 +6,21 @@
 
 import 'renderer/css/settings.css';
 
+import createCache from '@emotion/cache';
+import {CacheProvider} from '@emotion/react';
+import type {EmotionCache} from '@emotion/react';
 import React from 'react';
-import {FormCheck, Col, FormGroup, FormText, Container, Row, Button, FormControl} from 'react-bootstrap';
-import {FormattedMessage, injectIntl, IntlShape} from 'react-intl';
-import ReactSelect, {ActionMeta, MultiValue} from 'react-select';
-
-import {CombinedConfig, LocalConfiguration} from 'types/config';
-import {SaveQueueItem} from 'types/settings';
-import {DeepPartial} from 'types/utils';
+import {FormCheck, Col, FormGroup, FormText, Container, Row, Button, FormControl, Modal} from 'react-bootstrap';
+import type {IntlShape} from 'react-intl';
+import {FormattedMessage, injectIntl} from 'react-intl';
+import type {ActionMeta, MultiValue} from 'react-select';
+import ReactSelect from 'react-select';
 
 import {localeTranslations} from 'common/utils/constants';
+
+import type {CombinedConfig, LocalConfiguration} from 'types/config';
+import type {SaveQueueItem} from 'types/settings';
+import type {DeepPartial} from 'types/utils';
 
 import AutoSaveIndicator, {SavingState} from './AutoSaveIndicator';
 
@@ -23,6 +28,8 @@ const CONFIG_TYPE_UPDATES = 'updates';
 const CONFIG_TYPE_APP_OPTIONS = 'appOptions';
 
 type Props = {
+    show: boolean;
+    onClose: () => void;
     intl: IntlShape;
 }
 
@@ -35,6 +42,7 @@ type State = DeepPartial<CombinedConfig> & {
     availableLanguages: Array<{label: string; value: string}>;
     availableSpellcheckerLanguages: Array<{label: string; value: string}>;
     canUpgrade?: boolean;
+    cache?: EmotionCache;
 }
 
 type SavingStateItems = {
@@ -123,13 +131,20 @@ class SettingsPage extends React.PureComponent<Props, State> {
             availableLanguages.sort((a, b) => a.label.localeCompare(b.label));
             this.setState({availableLanguages});
         });
+
+        window.desktop.getNonce().then((nonce) => {
+            this.setState({cache: createCache({
+                key: 'react-select-cache',
+                nonce,
+            })});
+        });
     }
 
     getConfig = () => {
         window.desktop.getLocalConfiguration().then((config) => {
             this.setState({ready: true, maximized: false, ...this.convertConfigDataToState(config as Partial<LocalConfiguration>, this.state) as Omit<State, 'ready'>});
         });
-    }
+    };
 
     convertConfigDataToState = (configData: Partial<LocalConfiguration>, currentState: Partial<State> = {}) => {
         const newState = Object.assign({} as State, configData);
@@ -139,7 +154,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
         };
         this.selectedSpellCheckerLocales = configData.spellCheckerLocales?.map((language: string) => ({label: localeTranslations[language] || language, value: language})) || [];
         return newState;
-    }
+    };
 
     saveSetting = (configType: 'updates' | 'appOptions', {key, data}: {key: keyof CombinedConfig; data: CombinedConfig[keyof CombinedConfig]}) => {
         this.saveQueue.push({
@@ -149,7 +164,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
         });
         this.updateSaveState();
         this.processSaveQueue();
-    }
+    };
 
     processSaveQueue = () => {
         if (this.savingIsDebounced) {
@@ -161,7 +176,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
             this.savingIsDebounced = false;
             window.desktop.updateConfiguration(this.saveQueue.splice(0, this.saveQueue.length));
         }, 500);
-    }
+    };
 
     updateSaveState = () => {
         let queuedUpdateCounts = {
@@ -186,7 +201,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
         });
 
         this.setState({savingState});
-    }
+    };
 
     resetSaveState = (configType: keyof SavingStateItems) => {
         if (this.resetSaveStateIsDebounced) {
@@ -201,7 +216,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 this.setState({savingState});
             }
         }, 2000);
-    }
+    };
 
     handleChangeShowTrayIcon = () => {
         const shouldShowTrayIcon = this.showTrayIconRef.current?.checked;
@@ -215,28 +230,28 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 minimizeToTray: false,
             });
         }
-    }
+    };
 
     handleChangeTrayIconTheme = (theme: string) => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'trayIconTheme', data: theme});
         this.setState({
             trayIconTheme: theme,
         });
-    }
+    };
 
     handleChangeAutoStart = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'autostart', data: this.autostartRef.current?.checked});
         this.setState({
             autostart: this.autostartRef.current?.checked,
         });
-    }
+    };
 
     handleChangeHideOnStart = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'hideOnStart', data: this.hideOnStartRef.current?.checked});
         this.setState({
             hideOnStart: this.hideOnStartRef.current?.checked,
         });
-    }
+    };
 
     handleChangeMinimizeToTray = () => {
         const shouldMinimizeToTray = (process.platform === 'win32' || this.state.showTrayIcon) && this.minimizeToTrayRef.current?.checked;
@@ -245,7 +260,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
         this.setState({
             minimizeToTray: shouldMinimizeToTray,
         });
-    }
+    };
 
     handleFlashWindow = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {
@@ -253,7 +268,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
             data: {
                 ...this.state.notifications,
                 flashWindow: this.flashWindowRef.current?.checked ? 2 : 0,
-            },
+            } as CombinedConfig['notifications'],
         });
         this.setState({
             notifications: {
@@ -261,7 +276,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 flashWindow: this.flashWindowRef.current?.checked ? 2 : 0,
             },
         });
-    }
+    };
 
     handleBounceIcon = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {
@@ -269,7 +284,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
             data: {
                 ...this.state.notifications,
                 bounceIcon: this.bounceIconRef.current?.checked,
-            },
+            } as CombinedConfig['notifications'],
         });
         this.setState({
             notifications: {
@@ -277,7 +292,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 bounceIcon: this.bounceIconRef.current?.checked,
             },
         });
-    }
+    };
 
     handleBounceIconType = (event: React.ChangeEvent<HTMLInputElement>) => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {
@@ -285,7 +300,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
             data: {
                 ...this.state.notifications,
                 bounceIconType: event.target.value,
-            },
+            } as CombinedConfig['notifications'],
         });
         this.setState({
             notifications: {
@@ -293,35 +308,35 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 bounceIconType: event.target.value as 'critical' | 'informational',
             },
         });
-    }
+    };
 
     handleShowUnreadBadge = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'showUnreadBadge', data: this.showUnreadBadgeRef.current?.checked});
         this.setState({
             showUnreadBadge: this.showUnreadBadgeRef.current?.checked,
         });
-    }
+    };
 
     handleChangeUseSpellChecker = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'useSpellChecker', data: this.useSpellCheckerRef.current?.checked});
         this.setState({
             useSpellChecker: this.useSpellCheckerRef.current?.checked,
         });
-    }
+    };
 
     handleChangeLogLevel = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'logLevel', data: this.logLevelRef.current?.value});
         this.setState({
             logLevel: this.logLevelRef.current?.value,
         });
-    }
+    };
 
     handleChangeAppLanguage = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'appLanguage', data: this.appLanguageRef.current?.value});
         this.setState({
             appLanguage: this.appLanguageRef.current?.value,
         });
-    }
+    };
 
     handleChangeAutoCheckForUpdates = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_UPDATES, {key: 'autoCheckForUpdates', data: this.autoCheckForUpdatesRef.current?.checked});
@@ -332,11 +347,11 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 this.checkForUpdates();
             }
         });
-    }
+    };
 
     checkForUpdates = () => {
         window.desktop.checkForUpdates();
-    }
+    };
 
     handleChangeSpellCheckerLocales = (value: MultiValue<{label: string; value: string}>, actionMeta: ActionMeta<{label: string; value: string}>) => {
         switch (actionMeta.action) {
@@ -352,21 +367,21 @@ class SettingsPage extends React.PureComponent<Props, State> {
         this.setState({
             spellCheckerLocales: values,
         });
-    }
+    };
 
     handleChangeEnableHardwareAcceleration = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'enableHardwareAcceleration', data: this.enableHardwareAccelerationRef.current?.checked});
         this.setState({
             enableHardwareAcceleration: this.enableHardwareAccelerationRef.current?.checked,
         });
-    }
+    };
 
     handleChangeStartInFullscreen = () => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'startInFullscreen', data: this.startInFullscreenRef.current?.checked});
         this.setState({
             startInFullscreen: this.startInFullscreenRef.current?.checked,
         });
-    }
+    };
 
     saveDownloadLocation = (location: string) => {
         if (!location) {
@@ -376,11 +391,11 @@ class SettingsPage extends React.PureComponent<Props, State> {
             downloadLocation: location,
         });
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'downloadLocation', data: location});
-    }
+    };
 
     handleChangeDownloadLocation = (e: React.ChangeEvent<HTMLInputElement>) => {
         this.saveDownloadLocation(e.target.value);
-    }
+    };
 
     selectDownloadLocation = () => {
         if (!this.state.userOpenedDownloadDialog) {
@@ -388,18 +403,18 @@ class SettingsPage extends React.PureComponent<Props, State> {
             this.setState({userOpenedDownloadDialog: true});
         }
         this.setState({userOpenedDownloadDialog: false});
-    }
+    };
 
     saveSpellCheckerURL = (): void => {
         window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'spellCheckerURL', data: this.state.spellCheckerURL});
-    }
+    };
 
     resetSpellCheckerURL = (): void => {
         this.setState({spellCheckerURL: undefined, allowSaveSpellCheckerURL: false});
-        window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'spellCheckerURL', data: null});
-    }
+        window.timers.setImmediate(this.saveSetting, CONFIG_TYPE_APP_OPTIONS, {key: 'spellCheckerURL', data: undefined});
+    };
 
-    handleChangeSpellCheckerURL= (e: React.ChangeEvent<HTMLInputElement>): void => {
+    handleChangeSpellCheckerURL = (e: React.ChangeEvent<HTMLInputElement>): void => {
         const dictionaryURL = e.target.value;
         let allowSaveSpellCheckerURL;
         try {
@@ -413,14 +428,18 @@ class SettingsPage extends React.PureComponent<Props, State> {
             spellCheckerURL: dictionaryURL,
             allowSaveSpellCheckerURL,
         });
-    }
+    };
 
     handleDoubleClick = () => {
         window.desktop.doubleClickOnWindow('settings');
-    }
+    };
 
     render() {
         const {intl} = this.props;
+
+        if (!this.state.cache) {
+            return null;
+        }
 
         const settingsPage = {
             close: {
@@ -453,6 +472,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
                 padding: '0.4em 0',
             },
             downloadLocationInput: {
+                display: 'inline',
                 marginRight: '3px',
                 marginTop: '8px',
                 width: '320px',
@@ -577,22 +597,24 @@ class SettingsPage extends React.PureComponent<Props, State> {
                     </FormText>
                 </FormCheck>
                 {this.state.useSpellChecker &&
-                    <ReactSelect
-                        inputId='inputSpellCheckerLocalesDropdown'
-                        className='SettingsPage__spellCheckerLocalesDropdown'
-                        classNamePrefix='SettingsPage__spellCheckerLocalesDropdown'
-                        options={this.state.availableSpellcheckerLanguages}
-                        isMulti={true}
-                        isClearable={false}
-                        onChange={this.handleChangeSpellCheckerLocales}
-                        value={this.selectedSpellCheckerLocales}
-                        placeholder={
-                            <FormattedMessage
-                                id='renderer.components.settingsPage.checkSpelling.preferredLanguages'
-                                defaultMessage='Select preferred language(s)'
-                            />
-                        }
-                    />
+                    <CacheProvider value={this.state.cache}>
+                        <ReactSelect
+                            inputId='inputSpellCheckerLocalesDropdown'
+                            className='SettingsPage__spellCheckerLocalesDropdown'
+                            classNamePrefix='SettingsPage__spellCheckerLocalesDropdown'
+                            options={this.state.availableSpellcheckerLanguages}
+                            isMulti={true}
+                            isClearable={false}
+                            onChange={this.handleChangeSpellCheckerLocales}
+                            value={this.selectedSpellCheckerLocales}
+                            placeholder={
+                                <FormattedMessage
+                                    id='renderer.components.settingsPage.checkSpelling.preferredLanguages'
+                                    defaultMessage='Select preferred language(s)'
+                                />
+                            }
+                        />
+                    </CacheProvider>
                 }
             </>,
         );
@@ -617,7 +639,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
                         style={settingsPage.container}
                         key='containerInputSpellcheckerURL'
                     >
-                        <input
+                        <FormControl
                             disabled={!this.state.useSpellChecker}
                             style={settingsPage.downloadLocationInput}
                             key='inputSpellCheckerURL'
@@ -1037,7 +1059,7 @@ class SettingsPage extends React.PureComponent<Props, State> {
                         defaultMessage='Download Location'
                     />
                 </div>
-                <input
+                <FormControl
                     disabled={true}
                     style={settingsPage.downloadLocationInput}
                     key='inputDownloadLocation'
@@ -1226,35 +1248,36 @@ class SettingsPage extends React.PureComponent<Props, State> {
         }
 
         return (
-            <div
-                className='container-fluid'
-                style={{
-                    height: '100%',
-                }}
+            <Modal
+                show={this.props.show}
+                id='settingsModal'
+                onHide={this.props.onClose}
             >
-                <div
-                    style={{
-                        overflowY: 'auto',
-                        height: '100%',
-                        margin: '0 -15px',
-                    }}
-                >
-                    <div style={{position: 'relative'}}>
-                        <h1 style={settingsPage.heading}>
-                            <FormattedMessage
-                                id='renderer.components.settingsPage.header'
-                                defaultMessage='Settings'
-                            />
-                        </h1>
-                        <hr/>
-                    </div>
-                    <Container
-                        className='settingsPage'
+                <Modal.Header closeButton={true}>
+                    <Modal.Title>
+                        <FormattedMessage
+                            id='renderer.components.settingsPage.header'
+                            defaultMessage='Settings'
+                        />
+                    </Modal.Title>
+                </Modal.Header>
+
+                <Modal.Body>
+                    <div
+                        style={{
+                            overflowY: 'auto',
+                            height: '100%',
+                            margin: '0 -15px',
+                        }}
                     >
-                        {waitForIpc}
-                    </Container>
-                </div>
-            </div>
+                        <Container
+                            className='settingsPage'
+                        >
+                            {waitForIpc}
+                        </Container>
+                    </div>
+                </Modal.Body>
+            </Modal>
         );
     }
 }

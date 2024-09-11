@@ -5,12 +5,12 @@ import {MattermostServer} from 'common/servers/MattermostServer';
 import ServerManager from 'common/servers/serverManager';
 import {URLValidationStatus} from 'common/utils/constants';
 import {getDefaultViewsForConfigServer} from 'common/views/View';
-
+import PermissionsManager from 'main/permissionsManager';
 import {ServerInfo} from 'main/server/serverInfo';
+import {getLocalPreload} from 'main/utils';
 import ModalManager from 'main/views/modalManager';
-import {getLocalURLString, getLocalPreload} from 'main/utils';
-import MainWindow from 'main/windows/mainWindow';
 import ViewManager from 'main/views/viewManager';
+import MainWindow from 'main/windows/mainWindow';
 
 import {ServerViewState} from './serverViewState';
 
@@ -50,7 +50,6 @@ jest.mock('main/views/modalManager', () => ({
 }));
 jest.mock('main/utils', () => ({
     getLocalPreload: jest.fn(),
-    getLocalURLString: jest.fn(),
 }));
 jest.mock('main/windows/mainWindow', () => ({
     get: jest.fn(),
@@ -59,6 +58,10 @@ jest.mock('main/windows/mainWindow', () => ({
 jest.mock('main/views/viewManager', () => ({
     getView: jest.fn(),
     showById: jest.fn(),
+}));
+jest.mock('main/permissionsManager', () => ({
+    getForServer: jest.fn(),
+    setForServer: jest.fn(),
 }));
 
 const tabs = [
@@ -165,7 +168,6 @@ describe('app/serverViewState', () => {
         let serversCopy;
 
         beforeEach(() => {
-            getLocalURLString.mockReturnValue('/some/index.html');
             getLocalPreload.mockReturnValue('/some/preload.js');
             MainWindow.get.mockReturnValue({});
 
@@ -222,7 +224,6 @@ describe('app/serverViewState', () => {
         let serversCopy;
 
         beforeEach(() => {
-            getLocalURLString.mockReturnValue('/some/index.html');
             getLocalPreload.mockReturnValue('/some/preload.js');
             MainWindow.get.mockReturnValue({});
 
@@ -244,6 +245,7 @@ describe('app/serverViewState', () => {
                 serversCopy = [newServer];
             });
             ServerManager.getAllServers.mockReturnValue(serversCopy.map((server) => ({...server, toUniqueServer: jest.fn()})));
+            PermissionsManager.getForServer.mockReturnValue({notifications: {allowed: true}});
         });
 
         it('should do nothing when the server cannot be found', () => {
@@ -252,10 +254,10 @@ describe('app/serverViewState', () => {
         });
 
         it('should edit the existing server', async () => {
-            const promise = Promise.resolve({
+            const promise = Promise.resolve({server: {
                 name: 'new-server',
                 url: 'http://new-server.com',
-            });
+            }});
             ModalManager.addModal.mockReturnValue(promise);
 
             serverViewState.showEditServerModal(null, 'server-1');
@@ -273,6 +275,32 @@ describe('app/serverViewState', () => {
                 tabs,
             }));
         });
+
+        it('should edit the permissions', async () => {
+            const promise = Promise.resolve({server: {
+                name: 'server-1',
+                url: 'http://server-1.com',
+            },
+            permissions: {
+                notifications: {
+                    alwaysDeny: true,
+                },
+            }});
+            ModalManager.addModal.mockReturnValue(promise);
+
+            serverViewState.showEditServerModal(null, 'server-1');
+            await promise;
+            expect(PermissionsManager.setForServer).toHaveBeenCalledWith(expect.objectContaining({
+                id: 'server-1',
+                name: 'server-1',
+                url: 'http://server-1.com',
+                tabs,
+            }), {
+                notifications: {
+                    alwaysDeny: true,
+                },
+            });
+        });
     });
 
     describe('handleRemoveServerModal', () => {
@@ -280,7 +308,6 @@ describe('app/serverViewState', () => {
         let serversCopy;
 
         beforeEach(() => {
-            getLocalURLString.mockReturnValue('/some/index.html');
             getLocalPreload.mockReturnValue('/some/preload.js');
             MainWindow.get.mockReturnValue({});
 
@@ -418,6 +445,26 @@ describe('app/serverViewState', () => {
             expect(result.validatedURL).toBe('http://server.com/');
         });
 
+        it('should be able to recognize localhost with a port and add the appropriate prefix', async () => {
+            ServerInfo.mockImplementation(({url}) => ({
+                fetchConfigData: jest.fn().mockImplementation(() => {
+                    if (url.startsWith('https:')) {
+                        return undefined;
+                    }
+
+                    return {
+                        serverVersion: '7.8.0',
+                        siteName: 'Mattermost',
+                        siteURL: url,
+                    };
+                }),
+            }));
+
+            const result = await serverViewState.handleServerURLValidation({}, 'localhost:8065');
+            expect(result.status).toBe(URLValidationStatus.Insecure);
+            expect(result.validatedURL).toBe('http://localhost:8065/');
+        });
+
         it('should show a warning when the ping request times out', async () => {
             ServerInfo.mockImplementation(() => ({
                 fetchConfigData: jest.fn().mockImplementation(() => {
@@ -444,6 +491,22 @@ describe('app/serverViewState', () => {
             const result = await serverViewState.handleServerURLValidation({}, 'https://server.com');
             expect(result.status).toBe(URLValidationStatus.URLUpdated);
             expect(result.validatedURL).toBe('https://mainserver.com/');
+        });
+
+        it('should not update the users URL when the Site URL is blank', async () => {
+            ServerInfo.mockImplementation(() => ({
+                fetchConfigData: jest.fn().mockImplementation(() => {
+                    return {
+                        serverVersion: '7.8.0',
+                        siteName: 'Mattermost',
+                        siteURL: '',
+                    };
+                }),
+            }));
+
+            const result = await serverViewState.handleServerURLValidation({}, 'https://server.com');
+            expect(result.status).toBe(URLValidationStatus.OK);
+            expect(result.validatedURL).toBe('https://server.com/');
         });
 
         it('should warn the user when the Site URL is different but unreachable', async () => {

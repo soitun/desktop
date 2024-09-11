@@ -1,25 +1,20 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import fs from 'fs';
 import path from 'path';
 
-import fs from 'fs-extra';
-
-import {app, BrowserWindow, Menu, Rectangle, Session, session, dialog, nativeImage, screen} from 'electron';
+import type {BrowserWindow, Rectangle} from 'electron';
+import {app, Menu, session, dialog, nativeImage, screen} from 'electron';
 import isDev from 'electron-is-dev';
 
-import {MigrationInfo} from 'types/config';
-import {RemoteInfo} from 'types/server';
-import {Boundaries} from 'types/utils';
-
-import Config from 'common/config';
-import {Logger} from 'common/log';
-import JsonFileManager from 'common/JsonFileManager';
-import ServerManager from 'common/servers/serverManager';
-import {MattermostServer} from 'common/servers/MattermostServer';
 import {APP_MENU_WILL_CLOSE} from 'common/communication';
+import Config from 'common/config';
+import JsonFileManager from 'common/JsonFileManager';
+import {Logger} from 'common/log';
+import type {MattermostServer} from 'common/servers/MattermostServer';
+import ServerManager from 'common/servers/serverManager';
 import {isValidURI} from 'common/utils/url';
-
 import updateManager from 'main/autoUpdater';
 import {migrationInfoPath, updatePaths} from 'main/constants';
 import {localizeMessage} from 'main/i18nManager';
@@ -29,6 +24,10 @@ import {ServerInfo} from 'main/server/serverInfo';
 import Tray from 'main/tray/tray';
 import ViewManager from 'main/views/viewManager';
 import MainWindow from 'main/windows/mainWindow';
+
+import type {MigrationInfo} from 'types/config';
+import type {RemoteInfo} from 'types/server';
+import type {Boundaries} from 'types/utils';
 
 import {mainProtocol} from './initialize';
 
@@ -145,45 +144,42 @@ function getValidWindowPosition(state: Rectangle) {
     return {x: state.x, y: state.y};
 }
 
-export function resizeScreen(browserWindow: BrowserWindow) {
-    function handle() {
-        log.debug('resizeScreen.handle');
-        const position = browserWindow.getPosition();
-        const size = browserWindow.getSize();
-        const validPosition = getValidWindowPosition({
-            x: position[0],
-            y: position[1],
-            width: size[0],
-            height: size[1],
-        });
-        if (typeof validPosition.x !== 'undefined' || typeof validPosition.y !== 'undefined') {
-            browserWindow.setPosition(validPosition.x || 0, validPosition.y || 0);
-        } else {
-            browserWindow.center();
-        }
+function getNewWindowPosition(browserWindow: BrowserWindow) {
+    const mainWindow = MainWindow.get();
+    if (!mainWindow) {
+        return browserWindow.getPosition();
     }
 
-    browserWindow.once('restore', handle);
-    handle();
+    const newWindowSize = browserWindow.getSize();
+    const mainWindowSize = mainWindow.getSize();
+    const mainWindowPosition = mainWindow.getPosition();
+
+    return [
+        Math.floor(mainWindowPosition[0] + ((mainWindowSize[0] - newWindowSize[0]) / 2)),
+        Math.floor(mainWindowPosition[1] + ((mainWindowSize[1] - newWindowSize[1]) / 2)),
+    ];
 }
 
-export function flushCookiesStore(session: Session) {
+export function resizeScreen(browserWindow: BrowserWindow) {
+    const position = getNewWindowPosition(browserWindow);
+    const size = browserWindow.getSize();
+    const validPosition = getValidWindowPosition({
+        x: position[0],
+        y: position[1],
+        width: size[0],
+        height: size[1],
+    });
+    if (typeof validPosition.x !== 'undefined' || typeof validPosition.y !== 'undefined') {
+        browserWindow.setPosition(validPosition.x || 0, validPosition.y || 0);
+    } else {
+        browserWindow.center();
+    }
+}
+
+export function flushCookiesStore() {
     log.debug('flushCookiesStore');
-    session.cookies.flushStore().catch((err) => {
+    session.defaultSession.cookies.flushStore().catch((err) => {
         log.error(`There was a problem flushing cookies:\n${err}`);
-    });
-}
-
-export function initCookieManager(session: Session) {
-    // Somehow cookies are not immediately saved to disk.
-    // So manually flush cookie store to disk on closing the app.
-    // https://github.com/electron/electron/issues/8416
-    app.on('before-quit', () => {
-        flushCookiesStore(session);
-    });
-
-    app.on('browser-window-blur', () => {
-        flushCookiesStore(session);
     });
 }
 
@@ -236,7 +232,7 @@ export function migrateMacAppStore() {
     }
 
     try {
-        fs.copySync(result[0], app.getPath('userData'));
+        fs.cpSync(result[0], app.getPath('userData'));
         updatePaths(true);
         migrationPrefs.setValue('masConfigs', true);
     } catch (e) {

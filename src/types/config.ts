@@ -119,7 +119,6 @@ export type RegistryConfig = {
 
 export type CombinedConfig = Omit<Config, 'teams'> & Omit<BuildConfig, 'defaultServers'> & {
     appName: string;
-    useNativeWindow: boolean;
 }
 
 export type LocalConfiguration = Config & {
@@ -131,4 +130,5 @@ export type LocalConfiguration = Config & {
 export type MigrationInfo = {
     updateTrayIconWin32: boolean;
     masConfigs: boolean;
+    closeExtraTabs: boolean;
 }

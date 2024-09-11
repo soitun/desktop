@@ -6,14 +6,12 @@
 import {getDoNotDisturb as getDarwinDoNotDisturb} from 'macos-notification-state';
 
 import {DOWNLOADS_DROPDOWN_FULL_WIDTH, DOWNLOADS_DROPDOWN_MENU_FULL_HEIGHT, DOWNLOADS_DROPDOWN_MENU_FULL_WIDTH, TAB_BAR_HEIGHT} from 'common/utils/constants';
-
 import MainWindow from 'main/windows/mainWindow';
 
 import {DownloadsDropdownMenuView} from './downloadsDropdownMenuView';
 
 jest.mock('main/utils', () => ({
     getLocalPreload: (file) => file,
-    getLocalURLString: (file) => file,
 }));
 jest.mock('electron', () => {
     class NotificationMock {

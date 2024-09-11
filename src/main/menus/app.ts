@@ -3,23 +3,26 @@
 // See LICENSE.txt for license information.
 'use strict';
 
-import {app, ipcMain, Menu, MenuItemConstructorOptions, MenuItem, session, shell, WebContents, clipboard} from 'electron';
+import type {MenuItemConstructorOptions, MenuItem, WebContents} from 'electron';
+import {app, ipcMain, Menu, session, shell, clipboard} from 'electron';
 import log from 'electron-log';
 
 import ServerViewState from 'app/serverViewState';
-
 import {OPEN_SERVERS_DROPDOWN, SHOW_NEW_SERVER_MODAL} from 'common/communication';
-import {t} from 'common/utils/util';
-import {getViewDisplayName, ViewType} from 'common/views/View';
-import {Config} from 'common/config';
-
-import {localizeMessage} from 'main/i18nManager';
+import type {Config} from 'common/config';
 import ServerManager from 'common/servers/serverManager';
-import {UpdateManager} from 'main/autoUpdater';
-import downloadsManager from 'main/downloadsManager';
+import {t} from 'common/utils/util';
+import {getViewDisplayName} from 'common/views/View';
+import type {ViewType} from 'common/views/View';
+import type {UpdateManager} from 'main/autoUpdater';
 import Diagnostics from 'main/diagnostics';
+import downloadsManager from 'main/downloadsManager';
+import {localizeMessage} from 'main/i18nManager';
+import {getLocalPreload} from 'main/utils';
+import ModalManager from 'main/views/modalManager';
 import ViewManager from 'main/views/viewManager';
-import SettingsWindow from 'main/windows/settingsWindow';
+import CallsWidgetWindow from 'main/windows/callsWidgetWindow';
+import MainWindow from 'main/windows/mainWindow';
 
 export function createTemplate(config: Config, updateManager: UpdateManager) {
     const separatorItem: MenuItemConstructorOptions = {
@@ -47,7 +50,18 @@ export function createTemplate(config: Config, updateManager: UpdateManager) {
         label: settingsLabel,
         accelerator: 'CmdOrCtrl+,',
         click() {
-            SettingsWindow.show();
+            const mainWindow = MainWindow.get();
+            if (!mainWindow) {
+                return;
+            }
+
+            ModalManager.addModal(
+                'settingsModal',
+                'mattermost-desktop://renderer/settings.html',
+                getLocalPreload('internalAPI.js'),
+                null,
+                mainWindow,
+            );
         },
     });
 
@@ -125,6 +139,43 @@ export function createTemplate(config: Config, updateManager: UpdateManager) {
         }],
     });
 
+    const devToolsSubMenu = [
+        {
+            label: localizeMessage('main.menus.app.view.devToolsAppWrapper', 'Developer Tools for Application Wrapper'),
+            accelerator: (() => {
+                if (process.platform === 'darwin') {
+                    return 'Alt+Command+I';
+                }
+                return 'Ctrl+Shift+I';
+            })(),
+            click(item: Electron.MenuItem, focusedWindow?: WebContents) {
+                if (focusedWindow) {
+                    // toggledevtools opens it in the last known position, so sometimes it goes below the browserview
+                    if (focusedWindow.isDevToolsOpened()) {
+                        focusedWindow.closeDevTools();
+                    } else {
+                        focusedWindow.openDevTools({mode: 'detach'});
+                    }
+                }
+            },
+        },
+        {
+            label: localizeMessage('main.menus.app.view.devToolsCurrentServer', 'Developer Tools for Current Server'),
+            click() {
+                ViewManager.getCurrentView()?.openDevTools();
+            },
+        },
+    ];
+
+    if (CallsWidgetWindow.isOpen()) {
+        devToolsSubMenu.push({
+            label: localizeMessage('main.menus.app.view.devToolsCurrentCallWidget', 'Developer Tools for Call Widget'),
+            click() {
+                CallsWidgetWindow.openDevTools();
+            },
+        });
+    }
+
     const viewSubMenu = [{
         label: localizeMessage('main.menus.app.view.find', 'Find..'),
         accelerator: 'CmdOrCtrl+F',
@@ -176,28 +227,8 @@ export function createTemplate(config: Config, updateManager: UpdateManager) {
             return downloadsManager.openDownloadsDropdown();
         },
     }, separatorItem, {
-        label: localizeMessage('main.menus.app.view.devToolsAppWrapper', 'Developer Tools for Application Wrapper'),
-        accelerator: (() => {
-            if (process.platform === 'darwin') {
-                return 'Alt+Command+I';
-            }
-            return 'Ctrl+Shift+I';
-        })(),
-        click(item: Electron.MenuItem, focusedWindow?: WebContents) {
-            if (focusedWindow) {
-                // toggledevtools opens it in the last known position, so sometimes it goes below the browserview
-                if (focusedWindow.isDevToolsOpened()) {
-                    focusedWindow.closeDevTools();
-                } else {
-                    focusedWindow.openDevTools({mode: 'detach'});
-                }
-            }
-        },
-    }, {
-        label: localizeMessage('main.menus.app.view.devToolsCurrentServer', 'Developer Tools for Current Server'),
-        click() {
-            ViewManager.getCurrentView()?.openDevTools();
-        },
+        label: localizeMessage('main.menus.app.view.devToolsSubMenu', 'Developer Tools'),
+        submenu: devToolsSubMenu,
     }];
 
     if (process.platform !== 'darwin' && process.platform !== 'win32') {

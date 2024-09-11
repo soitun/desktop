@@ -4,7 +4,6 @@
 'use strict';
 
 import {TAB_BAR_HEIGHT, THREE_DOT_MENU_WIDTH, THREE_DOT_MENU_WIDTH_MAC, MENU_SHADOW_WIDTH} from 'common/utils/constants';
-
 import MainWindow from 'main/windows/mainWindow';
 
 import {ServerDropdownView} from './serverDropdownView';
@@ -13,7 +12,6 @@ jest.mock('app/serverViewState', () => ({}));
 
 jest.mock('main/utils', () => ({
     getLocalPreload: (file) => file,
-    getLocalURLString: (file) => file,
 }));
 
 jest.mock('electron', () => ({

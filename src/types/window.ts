@@ -1,14 +1,14 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {ipcRenderer, Rectangle} from 'electron/renderer';
+import type {ipcRenderer, Rectangle} from 'electron/renderer';
 
-import {Language} from '../../i18n/i18n';
+import type {CombinedConfig, LocalConfiguration, UniqueView, UniqueServer} from './config';
+import type {DownloadedItem, DownloadedItems, DownloadsMenuOpenEventPayload} from './downloads';
+import type {URLValidationResult} from './server';
+import type {SaveQueueItem} from './settings';
 
-import {CombinedConfig, LocalConfiguration, UniqueView, UniqueServer} from './config';
-import {DownloadedItem, DownloadedItems, DownloadsMenuOpenEventPayload} from './downloads';
-import {SaveQueueItem} from './settings';
-import {URLValidationResult} from './server';
+import type {Language} from '../../i18n/i18n';
 
 declare global {
     interface Window {
@@ -27,9 +27,6 @@ declare global {
         timers: {
             setImmediate: typeof setImmediate;
         };
-        mas: {
-            getThumbnailLocation: (location: string) => Promise<string>;
-        };
         desktop: {
             quit: (reason: string, stack: string) => void;
             openAppMenu: () => void;
@@ -37,10 +34,7 @@ declare global {
             openServersDropdown: () => void;
             switchTab: (viewId: string) => void;
             closeView: (viewId: string) => void;
-            closeWindow: () => void;
-            minimizeWindow: () => void;
-            maximizeWindow: () => void;
-            restoreWindow: () => void;
+            exitFullScreen: () => void;
             doubleClickOnWindow: (windowName?: string) => void;
             focusCurrentView: () => void;
             reloadCurrentView: () => void;
@@ -50,6 +44,7 @@ declare global {
             goBack: () => void;
             checkForUpdates: () => void;
             updateConfiguration: (saveQueueItems: SaveQueueItem[]) => void;
+            getNonce: () => Promise<string | undefined>;
 
             updateServerOrder: (serverOrder: string[]) => Promise<void>;
             updateTabOrder: (serverId: string, viewOrder: string[]) => Promise<void>;
@@ -96,6 +91,11 @@ declare global {
             onFocusThreeDotMenu: (listener: () => void) => void;
 
             updateURLViewWidth: (width?: number) => void;
+            openNotificationPreferences: () => void;
+            openWindowsCameraPreferences: () => void;
+            openWindowsMicrophonePreferences: () => void;
+            getMediaAccessStatus: (mediaType: 'microphone' | 'camera' | 'screen') => Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+            viewFinishedResizing: () => void;
 
             modals: {
                 cancelModal: <T>(data?: T) => void;

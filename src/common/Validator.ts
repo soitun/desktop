@@ -3,17 +3,17 @@
 
 import Joi from 'joi';
 
-import {Args} from 'types/args';
-import {AnyConfig, ConfigV0, ConfigV1, ConfigV2, ConfigV3, ConfigServer} from 'types/config';
-import {DownloadedItems} from 'types/downloads';
-import {SavedWindowState} from 'types/mainWindow';
-import {AppState} from 'types/appState';
-import {ComparableCertificate} from 'types/certificate';
-import {PermissionType, TrustedOrigin} from 'types/trustedOrigin';
-
 import {Logger} from 'common/log';
-import {TAB_MESSAGING} from 'common/views/View';
 import {isValidURL} from 'common/utils/url';
+import {TAB_MESSAGING} from 'common/views/View';
+
+import type {AppState} from 'types/appState';
+import type {Args} from 'types/args';
+import type {ComparableCertificate} from 'types/certificate';
+import type {AnyConfig, ConfigV0, ConfigV1, ConfigV2, ConfigV3, ConfigServer} from 'types/config';
+import type {DownloadedItems} from 'types/downloads';
+import type {SavedWindowState} from 'types/mainWindow';
+import type {PermissionType, TrustedOrigin} from 'types/trustedOrigin';
 
 const log = new Logger('Validator');
 const defaultOptions = {
@@ -60,6 +60,7 @@ const downloadsSchema = Joi.object<DownloadedItems>().pattern(
         receivedBytes: Joi.number().min(0),
         totalBytes: Joi.number().min(0),
         bookmark: Joi.string(),
+        thumbnailData: Joi.string(),
     });
 
 const configDataSchemaV0 = Joi.object<ConfigV0>({
@@ -179,7 +180,7 @@ export function validateArgs(data: Args) {
 }
 
 // validate bounds_info.json
-export function validateBoundsInfo(data: SavedWindowState) {
+export function validateBoundsInfo(data: SavedWindowState | null) {
     return validateAgainstSchema(data, boundsInfoSchema);
 }
 
@@ -309,5 +310,5 @@ function validateAgainstSchema<T>(data: T, schema: Joi.ObjectSchema<T> | Joi.Arr
         log.error(`Validation failed due to: ${error}`);
         return null;
     }
-    return value;
+    return value as T;
 }

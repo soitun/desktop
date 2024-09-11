@@ -1,7 +1,7 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {DownloadItemTypeEnum} from 'main/downloadsManager';
+import type {DownloadItemTypeEnum} from 'main/downloadsManager';
 
 export type DownloadItemUpdatedEventState = 'interrupted' | 'progressing';
 export type DownloadItemDoneEventState = 'completed' | 'cancelled' | 'interrupted';
@@ -18,6 +18,7 @@ export type DownloadedItem = {
     receivedBytes: number;
     totalBytes: number;
     bookmark?: string;
+    thumbnailData?: string;
 }
 
 export type DownloadedItems = Record<string, DownloadedItem>;

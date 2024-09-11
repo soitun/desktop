@@ -2,29 +2,23 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-/* eslint-disable max-lines */
-
 import classNames from 'classnames';
 import React, {Fragment} from 'react';
+import type {DropResult} from 'react-beautiful-dnd';
 import {Container, Row} from 'react-bootstrap';
-import {DropResult} from 'react-beautiful-dnd';
-import {injectIntl, IntlShape} from 'react-intl';
+import type {IntlShape} from 'react-intl';
+import {injectIntl} from 'react-intl';
 
-import {UniqueView, UniqueServer} from 'types/config';
-import {DownloadedItems} from 'types/downloads';
+import type {UniqueView, UniqueServer} from 'types/config';
+import type {DownloadedItems} from 'types/downloads';
 
-import restoreButton from '../../assets/titlebar/chrome-restore.svg';
-import maximizeButton from '../../assets/titlebar/chrome-maximize.svg';
-import minimizeButton from '../../assets/titlebar/chrome-minimize.svg';
-import closeButton from '../../assets/titlebar/chrome-close.svg';
+import DownloadsDropdownButton from './DownloadsDropdown/DownloadsDropdownButton';
+import ErrorView from './ErrorView';
+import ExtraBar from './ExtraBar';
+import ServerDropdownButton from './ServerDropdownButton';
+import TabBar from './TabBar';
 
 import {playSound} from '../notificationSounds';
-
-import TabBar from './TabBar';
-import ExtraBar from './ExtraBar';
-import ErrorView from './ErrorView';
-import ServerDropdownButton from './ServerDropdownButton';
-import DownloadsDropdownButton from './DownloadsDropdown/DownloadsDropdownButton';
 
 import '../css/components/UpgradeButton.scss';
 
@@ -40,7 +34,6 @@ type Props = {
     openMenu: () => void;
     darkMode: boolean;
     appName: string;
-    useNativeWindow: boolean;
     intl: IntlShape;
 };
 
@@ -141,19 +134,19 @@ class MainPage extends React.PureComponent<Props, State> {
         });
         this.setState({servers, tabs, tabViewStatus});
         return Boolean(servers.length);
-    }
+    };
 
     setInitialActiveTab = async () => {
         const lastActive = await window.desktop.getLastActive();
         this.setActiveView(lastActive.server, lastActive.view);
-    }
+    };
 
     updateServers = async () => {
         const hasServers = await this.getServersAndTabs();
         if (hasServers && !(this.state.activeServerId && this.state.activeTabId)) {
             await this.setInitialActiveTab();
         }
-    }
+    };
 
     async componentDidMount() {
         // request downloads
@@ -164,7 +157,7 @@ class MainPage extends React.PureComponent<Props, State> {
 
         // set page on retry
         window.desktop.onLoadRetry((viewId, retry, err, loadUrl) => {
-            console.log(`${viewId}: failed to load ${err}, but retrying`);
+            console.error(`${viewId}: failed to load ${err}, but retrying`);
             const statusValue = {
                 status: Status.RETRY,
                 extra: {
@@ -181,7 +174,7 @@ class MainPage extends React.PureComponent<Props, State> {
         });
 
         window.desktop.onLoadFailed((viewId, err, loadUrl) => {
-            console.log(`${viewId}: failed to load ${err}`);
+            console.error(`${viewId}: failed to load ${err}`);
             const statusValue = {
                 status: Status.FAILED,
                 extra: {
@@ -281,28 +274,28 @@ class MainPage extends React.PureComponent<Props, State> {
             return;
         }
         this.setState({activeServerId: serverId, activeTabId: tabId});
-    }
+    };
 
     handleCloseDropdowns = () => {
         window.desktop.closeServersDropdown();
         this.closeDownloadsDropdown();
-    }
+    };
 
     handleMaximizeState = (maximized: boolean) => {
         this.setState({maximized});
-    }
+    };
 
     handleFullScreenState = (isFullScreen: boolean) => {
         this.setState({fullScreen: isFullScreen});
-    }
+    };
 
     handleSelectTab = (tabId: string) => {
         window.desktop.switchTab(tabId);
-    }
+    };
 
     handleCloseTab = (tabId: string) => {
         window.desktop.closeView(tabId);
-    }
+    };
 
     handleDragAndDrop = async (dropResult: DropResult) => {
         const removedIndex = dropResult.source.index;
@@ -326,43 +319,33 @@ class MainPage extends React.PureComponent<Props, State> {
         tabs.set(this.state.activeServerId, tabsCopy);
         this.setState({tabs});
         this.handleSelectTab(tab[0].id!);
-    }
+    };
 
-    handleClose = (e: React.MouseEvent<HTMLDivElement>) => {
+    handleExitFullScreen = (e: React.MouseEvent<HTMLDivElement>) => {
         e.stopPropagation(); // since it is our button, the event goes into MainPage's onclick event, getting focus back.
-        window.desktop.closeWindow();
-    }
 
-    handleMinimize = (e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation();
-        window.desktop.minimizeWindow();
-    }
-
-    handleMaximize = (e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation();
-        window.desktop.maximizeWindow();
-    }
-
-    handleRestore = () => {
-        window.desktop.restoreWindow();
-    }
+        if (!this.state.fullScreen) {
+            return;
+        }
+        window.desktop.exitFullScreen();
+    };
 
     openMenu = () => {
         this.props.openMenu();
-    }
+    };
 
     handleDoubleClick = () => {
         window.desktop.doubleClickOnWindow();
-    }
+    };
 
     focusOnWebView = () => {
         window.desktop.focusCurrentView();
         this.handleCloseDropdowns();
-    }
+    };
 
     reloadCurrentView = () => {
         window.desktop.reloadCurrentView();
-    }
+    };
 
     showHideDownloadsBadge(value = false) {
         this.setState({showDownloadsBadge: value});
@@ -382,14 +365,14 @@ class MainPage extends React.PureComponent<Props, State> {
         this.setState({
             threeDotsIsFocused: true,
         });
-    }
+    };
 
     unFocusThreeDotsButton = () => {
         this.threeDotMenu.current?.blur();
         this.setState({
             threeDotsIsFocused: false,
         });
-    }
+    };
 
     render() {
         const {intl} = this.props;
@@ -431,60 +414,6 @@ class MainPage extends React.PureComponent<Props, State> {
                 openDownloadsDropdown={this.openDownloadsDropdown}
             />
         ) : null;
-
-        let maxButton;
-        if (this.state.maximized || this.state.fullScreen) {
-            maxButton = (
-                <div
-                    className='button restore-button'
-                    onClick={this.handleRestore}
-                >
-                    <img
-                        src={restoreButton}
-                        draggable={false}
-                    />
-                </div>
-            );
-        } else {
-            maxButton = (
-                <div
-                    className='button max-button'
-                    onClick={this.handleMaximize}
-                >
-                    <img
-                        src={maximizeButton}
-                        draggable={false}
-                    />
-                </div>
-            );
-        }
-
-        let titleBarButtons;
-        if (window.process.platform === 'win32' && !this.props.useNativeWindow) {
-            titleBarButtons = (
-                <span className='title-bar-btns'>
-                    <div
-                        className='button min-button'
-                        onClick={this.handleMinimize}
-                    >
-                        <img
-                            src={minimizeButton}
-                            draggable={false}
-                        />
-                    </div>
-                    {maxButton}
-                    <div
-                        className='button close-button'
-                        onClick={this.handleClose}
-                    >
-                        <img
-                            src={closeButton}
-                            draggable={false}
-                        />
-                    </div>
-                </span>
-            );
-        }
 
         const totalMentionCount = Object.keys(this.state.mentionCounts).reduce((sum, key) => {
             // Strip out current server from unread and mention counts
@@ -543,7 +472,16 @@ class MainPage extends React.PureComponent<Props, State> {
                     )}
                     {tabsRow}
                     {downloadsDropdownButton}
-                    {titleBarButtons}
+                    {window.process.platform !== 'darwin' && this.state.fullScreen &&
+                        <span className='title-bar-btns'>
+                            <div
+                                className='button full-screen-button'
+                                onClick={this.handleExitFullScreen}
+                            >
+                                <i className='icon icon-arrow-collapse'/>
+                            </div>
+                        </span>
+                    }
                 </div>
             </Row>
         );
